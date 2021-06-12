@@ -1,0 +1,12 @@
+[package]
+name = "ritual"
+version = "0.1.0"
+authors = ["antony-jr <antonyjr@protonmail.com>"]
+edition = "2018"
+build = "build.rs"
+
+[dependencies]
+zip="0.5.10"
+colored="2.0.0"
+clap="2.33.3"
+indicatif="0.16.0"

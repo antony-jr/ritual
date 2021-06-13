@@ -314,7 +314,7 @@ fn make_progress(level: u64, msg: &'static str) -> ProgressBar {
     let pb = ProgressBar::new(100);
     pb.set_style(
         ProgressStyle::default_bar()
-                .template("{spinner:.green/bold} {msg:.bold}▕{wide_bar}|")
+                .template("{spinner:.green/bold} {msg:.bold}▕{wide_bar}| {pos:>7}/{len:7}")
                 .progress_chars("█▓▒░  ")
     );
     pb.set_message(msg);

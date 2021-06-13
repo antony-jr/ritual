@@ -4,6 +4,14 @@ use std::time::Duration;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process;
+use std::io::BufReader;
+use std::fs::OpenOptions;
+use std::io::Read;
+use std::io::Write;
+use std::io;
+use zip::CompressionMethod;
+use zip::write::FileOptions;
+use zip::ZipWriter;
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use colored::Colorize;
@@ -310,6 +318,103 @@ fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
     };
 }
 
+fn compress(zip: &mut ZipWriter<fs::File>, append: &mut String, src_dir: &mut String, pb: &ProgressBar) -> bool {
+    match fs::read_dir(&src_dir) {
+        Ok(dir) => {
+            for entry in dir {
+                    pb.set_position(pb.position());
+                    match entry {
+                        Ok(dentry) => {
+                            let path = dentry.path();
+                            if path.is_dir() {
+                                match path.file_name() {
+                                    Some(name) => {
+                                        match name.to_str() {
+                                            Some(name_str) => {
+                                                let mut name_str_slash = String::new();
+                                                name_str_slash.push_str(name_str);
+                                                name_str_slash.push_str("/");
+
+                                                let mut new_root = src_dir.clone();
+                                                let mut append_new = append.clone();
+                                                append_new.push_str(&name_str_slash);
+                                                new_root.push_str(&name_str_slash);
+                                                let mut entry_dir_name = append.clone();
+                                                entry_dir_name.push_str(&name_str);
+
+                                                let options = 
+                                                    FileOptions::default()
+                                                    .compression_method(CompressionMethod::Stored);
+
+                                                zip.add_directory(&entry_dir_name, options);
+                                                
+                                                if !compress(zip, &mut append_new, &mut new_root, pb) {
+                                                    return false;
+                                                }
+                                            },
+                                            _ => {
+                                                return false;
+                                            }
+                                        }
+                                    },
+                                    _ => {
+                                        return false;
+                                    }
+                                }
+                            } else {
+                                match path.file_name() {
+                                    Some(name) => {
+                                        match name.to_str() {
+                                            Some(name_str) => {
+                                                let mut entry_file_name = append.clone();
+                                                entry_file_name.push_str(name_str);
+                                                
+                                                let mut file_source = src_dir.clone();
+                                                file_source.push_str(name_str);
+
+                                                let options = 
+                                                    FileOptions::default()
+                                                    .compression_method(CompressionMethod::Stored);
+                                                
+                                                zip.start_file(&entry_file_name, options);
+                                                match fs::File::open(&file_source) {
+                                                    Ok(f) => {
+                                                        let mut contents = vec![];
+                                                        let mut buf_reader = BufReader::new(f);
+                                                        buf_reader.read_to_end(&mut contents);
+                                                        zip.write(&contents);
+                                                    },
+                                                    Err(e) => {
+                                                        return false;
+                                                    }
+                                                }
+
+                                            },
+                                            _ => {
+                                                return false;
+                                            }
+                                        }
+                                    },
+                                    _ => {
+                                        return false;
+                                    }
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            return false;
+                        }
+                    }
+            }
+            true
+        },
+        Err(e) => {
+            false
+        }
+    }
+
+}
+
 fn make_progress(level: u64, msg: &'static str) -> ProgressBar {
     let pb = ProgressBar::new(100);
     pb.set_style(
@@ -350,7 +455,7 @@ pub fn run(source_dir: &str) {
             spirit_name = String::from(name);
             
             let task = format!("🧻Ritual of {} ", spirit_name);
-            task_completed(5,1, &task, &pb);
+            task_completed(4,1, &task, &pb);
         },
         _ => {
            pb.finish_and_clear();
@@ -376,7 +481,7 @@ pub fn run(source_dir: &str) {
 
     {
         let task = format!("🧱Passed Valdation   ");    
-        task_completed(5,2, &task, &pb);
+        task_completed(4,2, &task, &pb);
     }
     
     pb = make_progress(progress, "💈Parsing");
@@ -389,7 +494,7 @@ pub fn run(source_dir: &str) {
                         Some(s) => s,
                         _ => ""
                     });    
-            task_completed(5,3, &task, &pb);
+            task_completed(4,3, &task, &pb);
  
         },
         _ => {
@@ -400,9 +505,58 @@ pub fn run(source_dir: &str) {
         }
     }
     progress = 50;
+    
+    pb = make_progress(progress, "🗜️Compressing ");
     pb.set_position(progress);
 
-    pb.finish_and_clear();
+    let filename = format!("{}.spirit", spirit_name); 
+    let output = Path::new(&filename);
+    if output.exists() {
+        pb.finish_and_clear();
+        println!("{}",
+                 "🛑 Write Failed, File Already Exists.\n");
+        process::exit(-1); 
+    }
+
+    let file = match OpenOptions::new().write(true)
+                                       .create_new(true)
+                                       .open(&filename) {
+        Ok(f) => f,
+        Err(e) => {
+            pb.finish_and_clear();
+            println!("{}{}.",
+                 "🛑 Write Failed, ",
+                 e);
+            process::exit(-1); 
+        }
+    };
+
+    progress = 80;
+    pb.set_position(progress);
+
+    let mut zip = ZipWriter::new(file);
+    let mut append = String::new();
+    let mut source_directory = String::from(source_dir);
+    if !compress(&mut zip, &mut append, &mut source_directory, &pb) {
+        pb.finish_and_clear();
+        println!("{}",
+                 "🛑 Compression Failed.\n");
+        process::exit(-1); 
+    }
+    zip.finish();
+    progress = 90;
+    pb.set_position(progress);
+
+    // For eye-candy, is this inefficient??
+    // But I don't care xD 
+    for _ in 0..10 {
+       pb.inc(1);
+       thread::sleep(Duration::from_millis(200));
+    }
+
+    let task = format!("🗜️Compressed Data ");
+    task_completed(4,4, &task, &pb);
+
 
     println!("\n{}{}{}",
         "✅ Made ".bold(),

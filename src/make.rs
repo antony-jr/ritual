@@ -537,6 +537,10 @@ pub fn run(source_dir: &str) {
     let mut zip = ZipWriter::new(file);
     let mut append = String::new();
     let mut source_directory = String::from(source_dir);
+    if !source_dir.ends_with("/") && !source_dir.ends_with("\\") {
+        source_directory.push_str("/");
+    }
+
     if !compress(&mut zip, &mut append, &mut source_directory, &pb) {
         pb.finish_and_clear();
         println!("{}",

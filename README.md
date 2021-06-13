@@ -9,7 +9,7 @@ Make Spirits for the Twenty First Century Window Sitter.
 This program takes in a **spirit directory**(which is a normal directory) with a specific structure
 which has all the data and instruction to render a spirit.
 
-# Usage 
+## Usage 
 
 ```
  ritual make ./Inori # Here Inori is a Spirit Directory :)
@@ -19,11 +19,15 @@ which has all the data and instruction to render a spirit.
 
 # Spirit Directory Specification (v0.1.0)
 
+```
+
 - Spirit File Name/ (ex: Inori which will become Inori.spirit after ritual)
 |--|
    |-actions/
    |-audio/
    |-meta.json
+
+```
 
 #### meta.json
 
@@ -73,7 +77,7 @@ This directory holds all your audio files. Optionally to play a audio when a act
 **.mp3** format.
 
 
-# LICENSE
+## LICENSE
 
 The MIT License.
 

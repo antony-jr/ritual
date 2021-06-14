@@ -30,9 +30,11 @@ jobs:
           echo "::set-output name=check::$result"
           
   build_linux:
-    name: "Build And Deploy Linux"
+    id: build_linux
+    name: "Build Linux and Create Release"
     runs-on: ubuntu-18.04
     outputs:
+      deploy: ${{ needs.Check.outputs.deploy }}
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     needs: Check
     steps:
@@ -111,9 +113,9 @@ jobs:
           asset_content_type: application/octet-stream
           
   build_win:
+    name: "Build Windows"
     runs-on: windows-latest
     needs: build_linux
-
     steps:
       - name: Checkout
         uses: actions/checkout@v1
@@ -129,7 +131,7 @@ jobs:
         run: cargo build --all --release
         
       - name: Upload Development Build
-        if: needs.build_linux.needs.Check.outputs.deploy == 'false'
+        if: needs.build_linux.outputs.deploy == 'false'
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -142,7 +144,7 @@ jobs:
           body: "The latest and greatest of Ritual!"
           
       - name: Upload Build Release Asset
-        if: needs.build_linux.needs.Check.outputs.deploy != 'false'
+        if: needs.build_linux.outputs.deploy != 'false'
         uses: actions/upload-release-asset@latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -153,9 +155,9 @@ jobs:
           asset_content_type: application/octet-stream
 
   build_mac:
+    name: "Build MacOS"
     runs-on: macos-10.15
     needs: build_linux
-
     steps:
       - name: Checkout
         uses: actions/checkout@v1
@@ -172,7 +174,7 @@ jobs:
         run: cargo build --all --release && strip target/release/ritual && mv target/release/ritual target/release/ritual-macos-amd64
 
       - name: Upload Development Build
-        if: needs.build_linux.needs.Check.outputs.deploy == 'false'
+        if: needs.build_linux.outputs.deploy == 'false'
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -185,7 +187,7 @@ jobs:
           body: "The latest and greatest of Ritual!"
           
       - name: Upload Build Release Asset
-        if: needs.build_linux.needs.Check.outputs.deploy != 'false'
+        if: needs.build_linux.outputs.deploy != 'false'
         uses: actions/upload-release-asset@latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

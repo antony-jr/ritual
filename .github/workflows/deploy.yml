@@ -57,6 +57,17 @@ jobs:
       - name: Build Ritual
         id: linux_build
         run: |
+          export RITUAL_GIT_COMMIT=$(git rev-parse --short HEAD)
+          export RITUAL_BUILD_DATE="$(date +'%d %A %B %Y %T')"
+          export RITUAL_BUILD_NO=$GITHUB_RUN_NUMBER
+          deploy=${{ needs.Check.outputs.deploy }} 
+          if [ "$deploy" = "false" ]
+            then
+            export RITUAL_VERSION="dev"
+          else
+            export RITUAL_VERSION=$deploy
+          fi
+
           cargo build --all --release
           strip target/release/ritual
           mv target/release/ritual ritual-linux-amd64

@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate json;
-
 use clap::{App, AppSettings, Arg, SubCommand};
 use colored::Colorize;
 

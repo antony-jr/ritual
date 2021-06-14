@@ -1,6 +1,6 @@
+use json::parse;
 use std::fs;
 use std::fs::OpenOptions;
-use std::io;
 use std::io::BufReader;
 use std::io::Read;
 use std::io::Write;
@@ -14,7 +14,7 @@ use zip::CompressionMethod;
 use zip::ZipWriter;
 
 use colored::Colorize;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::banner;
 
@@ -88,7 +88,7 @@ fn validate_directory_structure(src_dir: &str, pb: &ProgressBar) -> bool {
                             _ => {}
                         };
                     }
-                    Err(e) => {
+                    Err(_) => {
                         return false;
                     }
                 }
@@ -96,13 +96,12 @@ fn validate_directory_structure(src_dir: &str, pb: &ProgressBar) -> bool {
             pb.inc(10);
             true
         }
-        Err(e) => false,
+        Err(_) => false,
     }
 }
 
 fn get_frame_count(src_dir: &Path) -> Option<i32> {
     let mut file_count: i32 = 0;
-    let mut path = PathBuf::new();
     match fs::read_dir(src_dir) {
         Ok(dir) => {
             for entry in dir {
@@ -114,14 +113,14 @@ fn get_frame_count(src_dir: &Path) -> Option<i32> {
                         }
                         file_count += 1;
                     }
-                    Err(e) => {
+                    Err(_) => {
                         return None;
                     }
                 }
             }
             return Some(file_count);
         }
-        Err(e) => {
+        Err(_) => {
             return None;
         }
     };
@@ -137,7 +136,7 @@ fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
 
     match fs::read_to_string(path.as_path()) {
         Ok(contents) => {
-            match json::parse(&contents) {
+            match parse(&contents) {
                 Ok(value) => {
                     pb.set_position(pb.position());
                     // Check for name key
@@ -188,8 +187,8 @@ fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
                             return None;
                         }
 
-                        let mut got_frames: bool = false;
-                        let mut got_play: bool = false;
+                        let mut _got_frames: bool = false;
+                        let mut _got_play: bool = false;
                         let frames_count = match get_frame_count(actions_path.as_path()) {
                             Some(v) => v,
                             _ => {
@@ -247,11 +246,10 @@ fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
                                         }
                                     }
                                 }
-                                got_frames = true;
+                                _got_frames = true;
                             }
 
                             if info.0 == "play" && info.1.is_string() {
-                                let mut loc: String;
                                 match info.1.as_str() {
                                     Some(string) => {
                                         let file_name = format!("{}.mp3", string);
@@ -267,11 +265,11 @@ fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
                                         return None;
                                     }
                                 }
-                                got_play = true;
+                                _got_play = true;
                             }
                         }
 
-                        if !got_frames {
+                        if !_got_frames {
                             return None;
                         }
                         actions_path.pop();
@@ -334,7 +332,12 @@ fn compress(
                                         let options = FileOptions::default()
                                             .compression_method(CompressionMethod::Stored);
 
-                                        zip.add_directory(&entry_dir_name, options);
+                                        match zip.add_directory(&entry_dir_name, options) {
+                                            Err(_) => {
+                                                return false;
+                                            }
+                                            _ => {}
+                                        }
 
                                         if !compress(zip, &mut append_new, &mut new_root, pb) {
                                             return false;
@@ -361,15 +364,30 @@ fn compress(
                                         let options = FileOptions::default()
                                             .compression_method(CompressionMethod::Stored);
 
-                                        zip.start_file(&entry_file_name, options);
+                                        match zip.start_file(&entry_file_name, options) {
+                                            Err(_) => {
+                                                return false;
+                                            }
+                                            _ => {}
+                                        }
                                         match fs::File::open(&file_source) {
                                             Ok(f) => {
                                                 let mut contents = vec![];
                                                 let mut buf_reader = BufReader::new(f);
-                                                buf_reader.read_to_end(&mut contents);
-                                                zip.write(&contents);
+                                                match buf_reader.read_to_end(&mut contents) {
+                                                    Err(_) => {
+                                                        return false;
+                                                    }
+                                                    _ => {}
+                                                }
+                                                match zip.write(&contents) {
+                                                    Err(_) => {
+                                                        return false;
+                                                    }
+                                                    _ => {}
+                                                }
                                             }
-                                            Err(e) => {
+                                            Err(_) => {
                                                 return false;
                                             }
                                         }
@@ -384,14 +402,14 @@ fn compress(
                             }
                         }
                     }
-                    Err(e) => {
+                    Err(_) => {
                         return false;
                     }
                 }
             }
             true
         }
-        Err(e) => false,
+        Err(_) => false,
     }
 }
 
@@ -410,15 +428,15 @@ fn make_progress(level: u64, msg: &'static str) -> ProgressBar {
 fn task_completed(total: u64, current: u64, task: &String, pb: &ProgressBar) {
     pb.finish_and_clear();
 
-    let taskStatus = format!("[{}/{}]", current, total);
+    let task_status = format!("[{}/{}]", current, total);
 
-    println!("{} {}✔️", taskStatus.bold(), task);
+    println!("{} {}✔️", task_status.bold(), task);
 }
 
 pub fn run(source_dir: &str) {
     banner::header();
 
-    let mut spirit_name: String = String::new();
+    let spirit_name: String;
     let mut progress: u64 = 5;
 
     // Validate Directory Structure.
@@ -521,7 +539,14 @@ pub fn run(source_dir: &str) {
         println!("{}", "🛑 Compression Failed.\n");
         process::exit(-1);
     }
-    zip.finish();
+    match zip.finish() {
+        Err(_) => {
+            pb.finish_and_clear();
+            println!("{}", "🛑 Archive Finalization Failed.\n");
+            process::exit(-1);
+        }
+        _ => {}
+    }
     progress = 90;
     pb.set_position(progress);
 
@@ -541,6 +566,6 @@ pub fn run(source_dir: &str) {
         spirit_name.bold(),
         ".spirit".bold()
     );
-    //banner::footer();
+    banner::footer();
     process::exit(0);
 }

@@ -30,7 +30,6 @@ jobs:
           echo "::set-output name=check::$result"
           
   build_linux:
-    id: build_linux
     name: "Build Linux and Create Release"
     runs-on: ubuntu-18.04
     outputs:

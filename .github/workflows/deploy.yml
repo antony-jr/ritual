@@ -1,0 +1,196 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  Check:
+    runs-on: ubuntu-16.04
+    outputs:
+      deploy: ${{ steps.check.outputs.check }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Python3
+        run: |
+          sudo apt install -y python3
+
+      - id: check
+        name: Check Commit Message
+        run: |
+          git clone https://github.com/antony-jr/ritual
+          cd ritual
+          git tag > /tmp/tags.txt
+          cd ..
+          rm -rf ritual
+          cat /tmp/tags.txt
+          result=$(python3 scripts/check.py "$(git log -1 --pretty=%B)" "/tmp/tags.txt")
+          echo "::set-output name=check::$result"
+          
+  build_linux:
+    name: "Build And Deploy Linux"
+    runs-on: ubuntu-16.04
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    needs: Check
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get upgrade -y
+          sudo apt-get -y install build-essential libgl1-mesa-dev \
+               ca-certificates autoconf libtool patch wget \
+               pkg-config
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+          override: true
+
+      - name: Build Ritual
+        id: linux_build
+        run: |
+          cargo build --all --release
+          strip target/release/ritual
+          mv target/release/ritual ritual-linux-amd64
+          
+          echo ::set-output name=binaryfile::ritual-linux-amd64
+          
+          file ritual-linux-amd64
+
+      - name: Delete Old Development Builds
+        if: needs.Check.outputs.deploy == 'false'
+        uses: dev-drprasad/delete-older-releases@v0.2.0
+        with:
+          keep_latest: 0
+          delete_tag_pattern: development
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Development Build
+        if: needs.Check.outputs.deploy == 'false'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./ritual-linux-amd64
+          tag: development
+          overwrite: true
+          file_glob: true
+          prerelease: true
+          release_name: "Ritual Development Builds"
+          body: "The latest and greatest of Ritual!"
+
+      - name: Create Release
+        if: needs.Check.outputs.deploy != 'false'
+        id: create_release
+        uses: actions/create-release@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.Check.outputs.deploy }}
+          release_name: Release ${{ needs.Check.outputs.deploy }}
+          body_path: ./release_notes/${{ needs.Check.outputs.deploy }}.md
+          draft: false
+          prerelease: false
+
+      - name: Upload Build Release Asset
+        if: needs.Check.outputs.deploy != 'false'
+        uses: actions/upload-release-asset@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./${{steps.linux_build.outputs.binaryfile}}
+          asset_name: ${{steps.linux_build.outputs.binaryfile}}
+          asset_content_type: application/octet-stream
+          
+  build_win:
+    runs-on: windows-latest
+    needs: build_linux
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+          override: true
+
+      - name: Build
+        run: cargo build --all --release
+        
+      - name: Upload Development Build
+        if: needs.build_linux.needs.Check.outputs.deploy == 'false'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./target/release/ritual.exe
+          tag: development
+          overwrite: true
+          file_glob: true
+          prerelease: true
+          release_name: "Ritual Development Builds"
+          body: "The latest and greatest of Ritual!"
+          
+      - name: Upload Build Release Asset
+        if: needs.build_linux.needs.Check.outputs.deploy != 'false'
+        uses: actions/upload-release-asset@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.build_linux.outputs.upload_url }}
+          asset_path: ./target/release/ritual.exe
+          asset_name: ritual.exe
+          asset_content_type: application/octet-stream
+
+  build_mac:
+    runs-on: macos-10.15
+    needs: build_linux
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-apple-darwin
+          default: true
+          override: true
+
+      - name: Build for mac
+        run: cargo build --all --release && strip target/release/ritual && mv target/release/ritual target/release/ritual-macos-amd64
+
+      - name: Upload Development Build
+        if: needs.build_linux.needs.Check.outputs.deploy == 'false'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./target/release/ritual-macos-amd64
+          tag: development
+          overwrite: true
+          file_glob: true
+          prerelease: true
+          release_name: "Ritual Development Builds"
+          body: "The latest and greatest of Ritual!"
+          
+      - name: Upload Build Release Asset
+        if: needs.build_linux.needs.Check.outputs.deploy != 'false'
+        uses: actions/upload-release-asset@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.build_linux.outputs.upload_url }}
+          asset_path: ./target/release/ritual-macos-amd64
+          asset_name: ritual-macos-amd64
+          asset_content_type: application/octet-stream

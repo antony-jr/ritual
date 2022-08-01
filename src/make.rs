@@ -100,32 +100,6 @@ fn validate_directory_structure(src_dir: &str, pb: &ProgressBar) -> bool {
     }
 }
 
-fn get_frame_count(src_dir: &Path) -> Option<i32> {
-    let mut file_count: i32 = 0;
-    match fs::read_dir(src_dir) {
-        Ok(dir) => {
-            for entry in dir {
-                match entry {
-                    Ok(dentry) => {
-                        let path = dentry.path();
-                        if !path.is_file() {
-                            return None;
-                        }
-                        file_count += 1;
-                    }
-                    Err(_) => {
-                        return None;
-                    }
-                }
-            }
-            return Some(file_count);
-        }
-        Err(_) => {
-            return None;
-        }
-    };
-}
-
 // Parse a Spirit Directory
 // Assumes that the given src_dir is a valid one.
 fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
@@ -141,6 +115,9 @@ fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
                     pb.set_position(pb.position());
                     // Check for name key
                     if !value.has_key("name") || !value["name"].is_string() {
+                        return None;
+                    }
+                    if !value.has_key("edition") || !value["edition"].is_string() {
                         return None;
                     }
                     if !value.has_key("version") || !value["version"].is_string() {
@@ -164,7 +141,6 @@ fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
 
                     // Check if all actions present in meta.json
                     // exists
-                    // Also check frames
                     let mut actions_count = 0;
                     let mut actions_path = PathBuf::new();
                     actions_path.push(src_dir);
@@ -174,11 +150,14 @@ fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
                     audio_path.push(src_dir);
                     audio_path.push("audio");
 
+                    let mut _got_play: bool = false;
+
                     for entry in value["actions"].entries() {
                         actions_count += 1;
-                        actions_path.push(entry.0);
+                        let filename = format!("{}.webp", entry.0);
+                        actions_path.push(filename.as_str());
 
-                        if !actions_path.as_path().is_dir() {
+                        if !actions_path.as_path().is_file() {
                             return None;
                         }
 
@@ -187,66 +166,12 @@ fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
                             return None;
                         }
 
-                        let mut _got_frames: bool = false;
-                        let mut _got_play: bool = false;
-                        let frames_count = match get_frame_count(actions_path.as_path()) {
-                            Some(v) => v,
-                            _ => {
-                                return None;
-                            }
-                        };
                         for info in jvalue.entries() {
-                            if info.0 != "frames"
-                                && info.0 != "play"
+                            if info.0 != "play"
                                 && info.0 != "loop"
-                                && info.0 != "interval"
+                                && info.0 != "speed"
                             {
                                 return None;
-                            }
-
-                            if info.0 == "frames" && info.1.is_array() {
-                                // Check all frames
-                                for member in info.1.members() {
-                                    match member.as_str() {
-                                        Some(range) => {
-                                            let mut count = 0;
-                                            let mut from: i32 = 0;
-                                            let mut to: i32 = 0;
-                                            for part in range.split('-') {
-                                                if count == 0 {
-                                                    from = match part.parse::<i32>() {
-                                                        Ok(integer) => integer,
-                                                        _ => 0,
-                                                    };
-                                                } else {
-                                                    to = match part.parse::<i32>() {
-                                                        Ok(integer) => integer,
-                                                        _ => -1,
-                                                    };
-                                                }
-                                                count += 1;
-                                            }
-
-                                            if count != 2 {
-                                                return None;
-                                            }
-
-                                            if frames_count < from {
-                                                return None;
-                                            }
-
-                                            if to > 0 {
-                                                if frames_count < to {
-                                                    return None;
-                                                }
-                                            }
-                                        }
-                                        _ => {
-                                            return None;
-                                        }
-                                    }
-                                }
-                                _got_frames = true;
                             }
 
                             if info.0 == "play" && info.1.is_string() {
@@ -269,9 +194,6 @@ fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
                             }
                         }
 
-                        if !_got_frames {
-                            return None;
-                        }
                         actions_path.pop();
                     }
 

@@ -129,9 +129,6 @@ fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
                     if !value.has_key("copyright") || !value["copyright"].is_string() {
                         return None;
                     }
-                    if !value.has_key("positions") || !value["positions"].is_object() {
-                        return None;
-                    }
 
                     if !value.has_key("actions") || !value["actions"].is_object() {
                         return None;
@@ -169,7 +166,13 @@ fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
                         for info in jvalue.entries() {
                             if info.0 != "play"
                                 && info.0 != "loop"
+                                && info.0 != "next"
                                 && info.0 != "speed"
+                                && info.0 != "scale"
+                                && info.0 != "yoff"
+                                && info.0 != "xoff"
+                                && info.0 != "_yoff"
+                                && info.0 != "_xoff"
                             {
                                 return None;
                             }
@@ -200,7 +203,7 @@ fn parse_directory(src_dir: &str, pb: &ProgressBar) -> Option<json::JsonValue> {
                     match fs::read_dir(actions_path.as_path()) {
                         Ok(actions) => {
                             let size = actions.count();
-                            if size != actions_count {
+                            if size > actions_count*2 {
                                 return None;
                             }
                         }

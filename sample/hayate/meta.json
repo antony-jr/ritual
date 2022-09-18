@@ -4,12 +4,10 @@
    "version": "v0.1.0",
    "author": "Antony J.R",
    "copyright": "Copyright (C) 2005,2007 Kurumi Chimari",
-   "positions" : {
-   	"yoff-px": 46
-   },
    "actions": {
 	   "default": {
-	      "speed": 50
+	      "yoff": 47,
+	      "speed": 50 
 	   }
    }
 }

@@ -1,0 +1,19 @@
+{
+   "name": "Default",
+   "edition": "2021",
+   "version": "v0.1.0",
+   "author": "Antony J.R",
+   "copyright": "Copyright (C) Giphy",
+   "actions": {
+	   "default": {
+	      "yoff": 40,
+	      "scale": 40
+	   },
+	   "error": {
+	      "yoff": 61,
+	      "scale": 25,
+	      "loop": false,
+	      "next": "default"
+	   }
+   }
+}

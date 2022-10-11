@@ -1,19 +1,18 @@
 {
-   "name": "Default",
+   "name": "Levi Ackerman",
    "edition": "2021",
-   "version": "v0.1.0",
+   "version": "v0.2.0",
    "author": "Antony J.R",
-   "copyright": "Copyright (C) Giphy",
+   "copyright": "Artwork Copyright (C) Giphy and Craftpix.",
    "actions": {
 	   "default": {
-	      "yoff": 40,
+	      "yoff": 55,
 	      "scale": 40
 	   },
 	   "error": {
 	      "yoff": 61,
 	      "scale": 25,
-	      "loop": false,
-	      "next": "default"
+	      "loop": true 
 	   }
    }
 }
